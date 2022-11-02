@@ -1,126 +1,156 @@
-import "./styles.css";
-import Converter from "./CurrencyConverter";
-import React, { useEffect, useRef, useState } from "react";
+import React, {useState, useEffect} from 'react';
+import '../styles/App.css';
+import data from '../data.js';
 
-export default function App() {
-  const [firstInput, setFirstInput] = useState("USD");
-  const [secondInput, setSecondInput] = useState("INR");
-  const [data, setData] = useState([]);
-  const [money, setMoney] = useState(0);
-  const [moneyFrom, setMoneyFrom] = useState(true);
-  const [exchangeRate, setExchangeRate] = useState();
-  function useFirstPrevious(value) {
-    const ref = useRef();
-    useEffect(() => {
-      ref.current = value;
-    });
-    return ref.current;
-  }
-  function useSecondPrevious(value) {
-    const ref = useRef();
-    useEffect(() => {
-      ref.current = value;
-    });
-    return ref.current;
-  }
+const weatherAPI = {
+  key: "a64d07a306972de8e9f8c8267a9cc2c0",
+  base: "https://api.openweathermap.org/data/2.5/"
+}
 
-  useEffect(() => {
-    fetch(
-      `https://v6.exchangerate-api.com/v6/7cc8565835b9b47e14685f57/latest/inr`
-    )
-      .then((response) => response.json())
-      .then((responsedata) => {
-        // const firstCurr = Object.keys(responsedata.conversion_rates)[145];
-        setData([...Object.keys(responsedata.conversion_rates)]);
-        console.log([...Object.keys(responsedata.conversion_rates)]);
-        // setFirstInput(responsedata.base_code);
-        // setSecondInput(Object.keys(responsedata.conversion_rates)[145]);
-        // setExchangeRate(responsedata.conversion_rates[firstCurr]);
-      });
-  }, []);
-  const first = useFirstPrevious(firstInput);
-  const second = useSecondPrevious(secondInput);
-  useEffect(() => {
-    // if (firstInput === secondInput) {
-    //   setFirstInput(second);
-    //   setSecondInput(first);
-    // }
-    // if (firstInput === secondInput) {
-    //   setFirstInput(second);
-    //   setSecondInput(first);
-    // }
-    if (firstInput != null && secondInput != null) {
-      fetch(
-        `https://v6.exchangerate-api.com/v6/7cc8565835b9b47e14685f57/pair/${firstInput}/${secondInput}`
-      )
-        .then((response) => response.json())
-        .then((responseData) => {
-          setExchangeRate(responseData.conversion_rate);
+const newsAPI = {
+  key: "1321740c80c3874a09a04e802b81c02a",
+  base: "https://gnews.io/api/v4/"
+}
+
+
+function App() {
+  const [query, setQuery] = useState('');
+  const [weather, setWeather] = useState({main:{temp: ''},name: '', sys: {country: ''}, weather: [{main: ''}]});
+  const [news, setNews] = useState(data);
+  const search = evt => {
+    if (evt.key === "Enter") {
+      fetch(`${weatherAPI.base}weather?q=${query}&units=metric&APPID=${weatherAPI.key}`)
+        .then(res => {
+          if (res.ok) 
+          return res.json();
+          else{
+            setQuery('');
+            throw new Error('Invalid location/city/country');
+          }
+        })
+        .then(result => {
+          setWeather(result);
+          setQuery('');
+          console.log(result);
+        })
+        .catch((error) => {
+          console.log(error)
         });
     }
-  }, [firstInput, secondInput, first, second]);
-  let toAmount = 0,
-    fromAmount = 1;
-  if (moneyFrom) {
-    fromAmount = money;
-    toAmount = fromAmount * exchangeRate || 0;
-    toAmount = toAmount.toFixed(2);
-  } else {
-    toAmount = money;
-    fromAmount = toAmount / exchangeRate;
-    fromAmount = fromAmount.toFixed(2);
   }
+  const changeLan = async(L) => {
+    if(L === 'English'){
+      await fetch(`${newsAPI.base}top-headlines?&lang=en&token=${newsAPI.key}`)
+            .then(res => {
+              if(res.ok)
+                return res.json();
+              else
+              throw new Error('Internel server error');
+            }).then(function (data) {
+              setNews(data);
+            })
+            .catch(error => console.log(error));
+    } else {
+        await fetch(`${newsAPI.base}top-headlines?&lang=hi&token=${newsAPI.key}`)
+              .then(res => {
+                if(res.ok)
+                  return res.json();
+                else
+                throw new Error('Internel server error');
+              }).then(function (data) {
+                setNews(data);
+              })
+              .catch(error => console.log(error));
+    }
+  }
+  useEffect(() =>{
+    const fetchWeather = async () =>{
+      if(navigator.geolocation){
+        navigator.geolocation.getCurrentPosition(async (position) =>{
+          // get user's location
+          let pos = {
+            lat: position.coords.latitude,
+            lon: position.coords.longitude, 
+          }
+          // get whether of user's location
+          await fetch(`${weatherAPI.base}weather?lat=${pos.lat}&lon=${pos.lon}&units=metric&appid=${weatherAPI.key}`)
+          .then(res => {
+            if (res.ok)
+              return res.json();
+            else
+              throw new Error('Invalid location/city/country');
+          })
+          .then(result => {
+            setWeather(result);
+            console.log(result);
+          })
+          .catch(error => console.log(error));
+        });
+      }
+    }
+    const fetchNews = async () =>{
+      if(news.articles.length === 1){
+        await fetch(`${newsAPI.base}top-headlines?&lang=hi&token=${newsAPI.key}`)
+          .then(function (response) {
+              if(response.ok)
+              return response.json();
+            else
+              throw new Error('Something went wrong')
+          })
+          .then(function (data) {
+            setNews(data);
+            console.log(data);
+          })
+          .catch(error => console.log(error));
+        }
+    }
+   fetchWeather();
+   fetchNews();
+  }, [])
+  
 
-  function onMoneyChangeFrom(e) {
-    const value = e.target.value;
-    setMoney(value);
-    setMoneyFrom(true);
-  }
-  function onMoneyChangeTo(e) {
-    const value = e.target.value;
-    setMoney(value);
-    setMoneyFrom(false);
-  }
-  function handleFromCurrency(e) {
-    if (firstInput === secondInput) {
-      setFirstInput(second);
-    } else setFirstInput(e.target.value);
-  }
-  function handleToCurrency(e) {
-    if (firstInput === secondInput) {
-      setSecondInput(first);
-    } else setSecondInput(e.target.value);
-  }
+  const dateBuilder = (d) => {
+    let months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    let days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+    let day = days[d.getDay()];
+    let date = d.getDate();
+    let month = months[d.getMonth()];
+    let year = d.getFullYear();
+
+    return `${day} ${date} ${month} ${year}`
+  }
+  
   return (
     <div className="App">
-      <h1>Currency Converter</h1>
-      <Converter
-        data={data}
-        money={money}
-        onMoneyChangeFrom={onMoneyChangeFrom}
-        onMoneyChangeTo={onMoneyChangeTo}
-        firstInput={firstInput}
-        secondInput={secondInput}
-        toAmount={toAmount}
-        fromAmount={fromAmount}
-        handleFromCurreny={handleFromCurrency}
-        handleToCurrency={handleToCurrency}
-      />
+    <div className='weather-info'>
+    <div className="weather-search-box">
+      <input className="search" type="text" onChange={e => setQuery(e.target.value)} placeholder="search.." value={query} onKeyPress={search}></input>
+    </div>
+    <div className="location-box">
+            <div className="location">{weather.name}, {weather.sys.country}</div>
+            <div className="date">{dateBuilder(new Date())}</div>
+          </div>
+      <div className="weather-box">
+        <div className="temp">{Math.round(weather.main.temp)}°c</div>
+        <div className="weather">{weather.weather[0].main}</div>
+      </div>
+      </div>
+    <div className='lan'>
+        <button onClick={() => changeLan('Hindi')} data-testid='lang-hi'>हिन्दी</button>
+        <button onClick={() => changeLan('English')} data-testid='lang-en'>English</button>
+      </div>
+      <div className='news-info'>
+          {news.articles.map((article) => {
+            return <article className='article' key={article.title}>
+            <a href={article.url}><h3>{article.title}</h3></a>
+              <p>{article.description}</p>
+              <img src={article.image} width='200px' height='200px'/>
+            </article>
+          })}
+      </div>
     </div>
   );
 }
 
-// import React  from "react";
-// import CurrencyConverter from './CurrencyConverter';
-// import '../styles/App.css';
-
-// const App = () => {
-//   return (
-//     <div id="main">
-//       <CurrencyConverter/>
-//     </div>
-//   )
-// }
-
-// export default App;
+export default App;
